@@ -1,0 +1,82 @@
+name: 'Quattera — run tests'
+description: 'Trigger a Quattera test run on your always-on runner, wait for it, and fail the job when it finds bugs.'
+author: 'Quattera AI Ltd.'
+branding:
+  icon: 'check-circle'
+  color: 'blue'
+
+inputs:
+  api-token:
+    description: 'Quattera API token — pass a repository secret, never a literal value'
+    required: true
+  project:
+    description: 'Project name or id'
+    required: true
+  list:
+    description: 'Test list name or id'
+    required: true
+  runner:
+    description: 'Runner (service account) name, as shown in Settings → CI/CD'
+    required: true
+  version:
+    description: 'Version / branch tag stored on the run'
+    required: false
+    default: ${{ github.ref_name }}
+  wait:
+    description: 'Wait for the run and fail the job by its result (true/false)'
+    required: false
+    default: 'true'
+  timeout-minutes:
+    description: 'Give up waiting after this many minutes (exit 2; the run keeps going in Quattera)'
+    required: false
+    default: '60'
+  api-url:
+    description: 'Quattera URL — only for self-hosted or testing'
+    required: false
+    default: 'https://app.quattera.ai'
+
+outputs:
+  run-id:
+    description: 'Quattera run id'
+    value: ${{ steps.run.outputs.run-id }}
+  run-url:
+    description: 'Link to the run in Quattera'
+    value: ${{ steps.run.outputs.run-url }}
+  status:
+    description: 'Final run status (completed, bugs_found, …) or the error code when no verdict was reached'
+    value: ${{ steps.run.outputs.status }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+
+    - name: Install quattera-cli
+      shell: bash
+      run: python -m pip install --quiet "quattera-cli==0.1.0"
+
+    - name: Run Quattera tests
+      id: run
+      shell: bash
+      # Inputs reach the CLI only through env vars — never interpolated into the script.
+      env:
+        QUATTERA_API_TOKEN: ${{ inputs.api-token }}
+        QUATTERA_API_URL: ${{ inputs.api-url }}
+        QT_PROJECT: ${{ inputs.project }}
+        QT_LIST: ${{ inputs.list }}
+        QT_RUNNER: ${{ inputs.runner }}
+        QT_VERSION: ${{ inputs.version }}
+        QT_WAIT: ${{ inputs.wait }}
+        QT_TIMEOUT: ${{ inputs.timeout-minutes }}
+      run: |
+        args=(run --project "$QT_PROJECT" --list "$QT_LIST" --runner "$QT_RUNNER" --github)
+        if [ -n "$QT_VERSION" ]; then
+          args+=(--version "$QT_VERSION")
+        fi
+        if [ "$QT_WAIT" = "true" ]; then
+          args+=(--wait --timeout "$QT_TIMEOUT")
+        fi
+        quattera "${args[@]}"

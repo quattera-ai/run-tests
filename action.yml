@@ -1,5 +1,5 @@
 name: 'Quattera — run tests'
-description: 'Trigger a Quattera test run on your always-on runner, wait for it, and fail the job when it finds bugs.'
+description: 'Trigger a Quattera test run on your always-on runner, wait for it, and fail the job on the results you choose (fail-on).'
 author: 'Quattera AI Ltd.'
 branding:
   icon: 'check-circle'
@@ -30,6 +30,10 @@ inputs:
     description: 'Give up waiting after this many minutes (exit 2; the run keeps going in Quattera)'
     required: false
     default: '60'
+  fail-on:
+    description: 'Comma list of results that fail the job: failed, page-error, needs-data-fix, needs-remap, bugs, new-bugs, all, none. Infra problems always fail (exit 2).'
+    required: false
+    default: 'new-bugs'
   api-url:
     description: 'Quattera URL — only for self-hosted or testing'
     required: false
@@ -56,7 +60,7 @@ runs:
 
     - name: Install quattera-cli
       shell: bash
-      run: python -m pip install --quiet "quattera-cli==0.1.0"
+      run: python -m pip install --quiet "quattera-cli==0.2.0"
 
     - name: Run Quattera tests
       id: run
@@ -71,8 +75,9 @@ runs:
         QT_VERSION: ${{ inputs.version }}
         QT_WAIT: ${{ inputs.wait }}
         QT_TIMEOUT: ${{ inputs.timeout-minutes }}
+        QT_FAIL_ON: ${{ inputs.fail-on }}
       run: |
-        args=(run --project "$QT_PROJECT" --list "$QT_LIST" --runner "$QT_RUNNER" --github)
+        args=(run --project "$QT_PROJECT" --list "$QT_LIST" --runner "$QT_RUNNER" --github --fail-on "$QT_FAIL_ON")
         if [ -n "$QT_VERSION" ]; then
           args+=(--version "$QT_VERSION")
         fi
